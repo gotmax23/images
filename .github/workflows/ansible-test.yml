@@ -35,19 +35,29 @@ jobs:
 
       - name: Install dependencies
         run: |
+          echo 'deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/unstable/xUbuntu_22.04/ /' | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:unstable.list
+          curl -fsSL https://download.opensuse.org/repositories/devel:kubic:libcontainers:unstable/xUbuntu_22.04/Release.key | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/devel_kubic_libcontainers_unstable.gpg > /dev/null
+          sudo apt-get update
+          sudo apt-get upgrade
           sudo apt-get install podman buildah
+          podman info
           pip install ansible-core
-
-      - name: Build ${{ matrix.name }} image
-        run: |
-          ${{ matrix.name }}/build.sh
-        working-directory: ./ansible-test/
 
       # This is necessary to allow running systemd in rootless containers
       - name: Start systemd user service
         run: |
           loginctl enable-linger runner
           sleep 1
+
+      - name: Build ${{ matrix.name }} image
+        run: |
+          ${{ matrix.name }}/build.sh
+          podman run -td --name ${{ matrix.name }} --systemd=true localhost/test-image:${{ matrix.name }}
+          sleep 20
+          podman logs ${{ matrix.name }}
+          podman kill ${{ matrix.name }}
+          podman rm ${{ matrix.name }}
+        working-directory: ./ansible-test/
 
       - name: Run basic tests with ${{ matrix.name }} image (latest ansible-core release)
         run: |
